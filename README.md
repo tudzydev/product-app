@@ -22,9 +22,11 @@ docker compose up --build
 ```
 
 - **Frontend UI**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:5000/api](http://localhost:5000/api)
-- **API Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
-- **PostgreSQL**: `localhost:5432`
+- **Backend API**: [http://localhost:5001/api](http://localhost:5001/api)
+- **API Health Check**: [http://localhost:5001/api/health](http://localhost:5001/api/health)
+- **PostgreSQL**: `localhost:5433` (mapped from 5432)
+
+> 📖 **Complete Documentation**: For a comprehensive tutorial on creating, structuring, and configuring the backend and frontend from scratch, see [SETUP_GUIDE.md](file:///Users/mac/Desktop/workspace/product-app/SETUP_GUIDE.md).
 
 ---
 

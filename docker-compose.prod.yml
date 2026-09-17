@@ -1,0 +1,65 @@
+services:
+  product-db:
+    image: postgres:15-alpine
+    container_name: product-db-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-product_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - product-db-prod-data:/var/lib/postgresql/data
+    networks:
+      - product-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-product_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: product-backend-prod
+    restart: always
+    environment:
+      PORT: 5001
+      NODE_ENV: production
+      POSTGRES_HOST: product-db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-product_db}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - "5001:5001"
+    depends_on:
+      product-db:
+        condition: service_healthy
+    networks:
+      - product-prod-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5001/api}
+    container_name: product-frontend-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - product-prod-network
+
+volumes:
+  product-db-prod-data:
+
+networks:
+  product-prod-network:
+    driver: bridge
