@@ -1,6 +1,7 @@
 {
-    "wathch": ["src"],
-    "ext": "ts",
-    "ignore": ["src/**/*.spec.ts","node_modules"],
-    "exec": "tsx watch src/server.ts"
+  "watch": ["src"],
+  "ext": "ts,json",
+  "ignore": ["src/**/*.spec.ts", "node_modules", "dist"],
+  "exec": "tsx src/server.ts",
+  "legacyWatch": true
 }
