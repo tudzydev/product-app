@@ -8,8 +8,25 @@ import {
   ProductStats,
 } from "@/types/product";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
+export function getApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!envUrl) {
+    return "http://localhost:5001/api";
+  }
+  let cleaned = envUrl.replace(/\/+$/, "");
+  // If user accidentally included "/api/products" or "/products", strip "/products"
+  if (cleaned.endsWith("/api/products")) {
+    cleaned = cleaned.replace(/\/products$/, "");
+  } else if (cleaned.endsWith("/products")) {
+    cleaned = cleaned.replace(/\/products$/, "");
+    if (!cleaned.endsWith("/api")) cleaned = `${cleaned}/api`;
+  } else if (!cleaned.endsWith("/api")) {
+    cleaned = `${cleaned}/api`;
+  }
+  return cleaned;
+}
+
+export const API_BASE = getApiBaseUrl();
 
 export async function checkBackendHealth(): Promise<{
   online: boolean;
@@ -17,7 +34,8 @@ export async function checkBackendHealth(): Promise<{
 }> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    // 10s timeout to allow Render/free tier cloud services time to wake from cold start
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const res = await fetch(`${API_BASE}/health`, {
       signal: controller.signal,

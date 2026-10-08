@@ -37,6 +37,7 @@ import {
   fetchStats,
   seedDemoProducts,
   updateProduct,
+  API_BASE,
 } from "@/services/api";
 
 export default function Home() {
@@ -281,8 +282,16 @@ export default function Home() {
               <div>
                 <h4 className="font-bold text-sm">Backend API is currently offline</h4>
                 <p className="text-xs text-base-content/70 mt-0.5">
-                  Cannot connect to <code className="font-mono font-semibold">http://localhost:5000/api</code>.
-                  Start the backend container via <code className="bg-base-100 px-1.5 py-0.5 rounded font-mono font-semibold">docker compose up</code> or run <code className="bg-base-100 px-1.5 py-0.5 rounded font-mono font-semibold">npm run dev</code> inside <code className="font-mono">backend/</code>.
+                  Cannot connect to <code className="font-mono font-semibold">{API_BASE}</code>.
+                  {API_BASE.includes("localhost") ? (
+                    <>
+                      {" "}Start the backend service via <code className="bg-base-100 px-1.5 py-0.5 rounded font-mono font-semibold">npm run dev</code> inside <code className="font-mono">backend/</code> or check your <code className="font-mono font-semibold">NEXT_PUBLIC_API_URL</code>.
+                    </>
+                  ) : (
+                    <>
+                      {" "}The cloud service may be waking up from a cold start, or verify your <code className="font-mono font-semibold">NEXT_PUBLIC_API_URL</code> environment variable.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

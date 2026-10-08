@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
+import { API_BASE } from "@/services/api";
 
 interface NavbarProps {
   backendOnline: boolean;
@@ -73,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 <div
                   className="badge badge-error/15 text-error border-error/30 gap-1.5 py-3 px-3 text-xs font-medium"
-                  title="Backend is not responding at http://localhost:5000/api"
+                  title={`Backend is not responding at ${API_BASE}`}
                 >
                   <Server className="w-3.5 h-3.5" />
                   <span>API Offline</span>
