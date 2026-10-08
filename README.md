@@ -1,6 +1,6 @@
 # Fullstack Product Application (ProductHub)
 
-A fullstack e-commerce catalog and inventory management application built with **Next.js 16**, **Tailwind CSS v4**, **daisyUI 5**, **Express 5**, **TypeScript**, **Sequelize ORM**, and **PostgreSQL**.
+A fullstack e-commerce catalog and inventory management application built with **Next.js 16**, **Tailwind CSS v4**, **daisyUI 5**, **Express 5**, **TypeScript**, **Sequelize ORM**, and **PostgreSQL** (with **Neon Serverless** cloud support).
 
 ---
 
@@ -8,7 +8,7 @@ A fullstack e-commerce catalog and inventory management application built with *
 
 - **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS v4, daisyUI 5, Lucide Icons.
 - **Backend**: Express 5, TypeScript, Sequelize ORM v6, RESTful API.
-- **Database**: PostgreSQL 15.
+- **Database**: PostgreSQL (Neon Serverless Cloud or Local Docker PostgreSQL 15).
 - **DevOps**: Docker & Docker Compose.
 
 ---
@@ -32,9 +32,21 @@ docker compose up --build
 
 ## 💻 Manual Local Development
 
-### 1. Start PostgreSQL
-Ensure PostgreSQL is running locally with database `product_db` (or run only the DB via Docker):
+### 1. Database Setup (Choose One)
 
+#### Option A: Neon Serverless PostgreSQL (Cloud - Recommended)
+Copy the environment template and set your Neon connection string in `backend/.env` (and root `.env`):
+
+```bash
+cp .env.example backend/.env
+```
+
+```env
+DATABASE_URL=postgresql://<user>:<password>@<endpoint>-pooler.<region>.aws.neon.tech/<dbname>?sslmode=require
+```
+*Note: Backend automatically uses `@neondatabase/serverless` over WebSockets (port 443), ensuring reliable connections even on networks that block standard port 5432.*
+
+#### Option B: Local PostgreSQL via Docker
 ```bash
 docker compose up product-db -d
 ```

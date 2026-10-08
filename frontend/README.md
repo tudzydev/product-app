@@ -50,7 +50,7 @@ pnpm install
 Ensure `.env.local` exists (default provided):
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ```
 
 ### 3. Run Development Server

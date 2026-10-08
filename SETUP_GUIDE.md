@@ -39,8 +39,8 @@ flowchart TD
         ORM["Sequelize ORM v6 Models"]
     end
 
-    subgraph DB ["Database Layer: PostgreSQL 15 (Port 5433 -> 5432)"]
-        Postgres[("product_db (products table)")]
+    subgraph DB ["Database Layer: PostgreSQL (Neon Serverless Cloud or Local Docker)"]
+        Postgres[("neondb / product_db (products table)")]
     end
 
     User --> Page
@@ -480,31 +480,121 @@ cd backend
 npm init -y
 
 # Dependencies
-npm install express@^5.0.0 sequelize@^6.37.0 pg@^8.23.0 cors@^2.8.5 dotenv@^17.4.0
+npm install express@^5.2.1 sequelize@^6.37.8 pg@^8.23.0 cors@^2.8.6 dotenv@^17.4.2 @neondatabase/serverless@^1.2.0 ws@^8.22.0
 
 # Dev Dependencies
-npm install -D typescript @types/node @types/express @types/cors @types/pg @types/dotenv tsx ts-node
+npm install -D typescript @types/node @types/express @types/cors @types/pg @types/dotenv @types/ws @types/sequelize @types/nodemon nodemon tsx ts-node
 ```
 
 ### 4.2 Database Configuration (`src/config/database.ts`)
+This configuration seamlessly handles both **Neon Cloud PostgreSQL** (via `@neondatabase/serverless` over WebSockets on port 443, bypassing firewall blocks on port 5432) and standard **local / Docker PostgreSQL**:
+
 ```typescript
-import { Sequelize } from 'sequelize';
-import dotenv from 'dotenv';
+import { Sequelize, Options } from "sequelize";
+import dotenv from "dotenv";
+import path from "path";
 
+// Ensure environment variables are loaded from multiple fallback paths
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
-export const sequelize = new Sequelize(
-  process.env.POSTGRES_DB || 'product_db',
-  process.env.POSTGRES_USER || 'postgres',
-  process.env.POSTGRES_PASSWORD || 'postgres',
-  {
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-    dialect: 'postgres',
-    logging: process.env.DB_LOGGING === 'true' ? console.log : false,
-    pool: { max: 10, min: 0, acquire: 30000, idle: 10000 }
-  }
+const rawDatabaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL_UNPOOLED;
+
+const dbName = process.env.POSTGRES_DB || process.env.PGDATABASE || "product_db";
+const dbUser = process.env.POSTGRES_USER || process.env.PGUSER || "postgres";
+const dbPassword = process.env.POSTGRES_PASSWORD || process.env.PGPASSWORD || "postgres";
+const dbHost = process.env.POSTGRES_HOST || process.env.PGHOST || "localhost";
+const dbPort = Number(process.env.POSTGRES_PORT) || 5432;
+
+const isNeon = Boolean(
+  (rawDatabaseUrl && rawDatabaseUrl.includes("neon.tech")) ||
+  (dbHost && dbHost.includes("neon.tech"))
 );
+
+const isSsl = Boolean(
+  isNeon ||
+  process.env.DB_SSL === "true" ||
+  (rawDatabaseUrl && rawDatabaseUrl.includes("sslmode=require"))
+);
+
+const sequelizeOptions: Options = {
+  dialect: "postgres",
+  logging:
+    process.env.NODE_ENV === "development" && process.env.DB_LOGGING === "true"
+      ? (msg) => console.log(`[DB] ${msg}`)
+      : false,
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+};
+
+if (isNeon) {
+  // Use @neondatabase/serverless with WebSockets for secure connection over port 443
+  // Bypasses ISP/firewall blocks on standard PostgreSQL port 5432
+  const neon = require("@neondatabase/serverless");
+  const ws = require("ws");
+  neon.neonConfig.webSocketConstructor = ws;
+  sequelizeOptions.dialectModule = neon;
+} else if (isSsl) {
+  sequelizeOptions.dialectOptions = {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
+  };
+}
+
+export const sequelize = rawDatabaseUrl
+  ? new Sequelize(rawDatabaseUrl, sequelizeOptions)
+  : isNeon
+  ? new Sequelize(
+      `postgresql://${encodeURIComponent(dbUser)}:${encodeURIComponent(dbPassword)}@${dbHost}:${dbPort}/${dbName}?sslmode=require`,
+      sequelizeOptions
+    )
+  : new Sequelize(dbName, dbUser, dbPassword, {
+      ...sequelizeOptions,
+      host: dbHost,
+      port: dbPort,
+    });
+
+export const connectDB = async (retryCount = 5, retryDelay = 3000): Promise<boolean> => {
+  for (let attempt = 1; attempt <= retryCount; attempt++) {
+    try {
+      await sequelize.authenticate();
+      console.log(
+        `✅ PostgreSQL database connected successfully${isNeon ? " (Neon Cloud)" : ""}`
+      );
+      await sequelize.sync();
+      console.log("✅ Database models synchronized");
+      return true;
+    } catch (error: any) {
+      console.warn(
+        `⚠️  [Database] Connection attempt ${attempt}/${retryCount} failed: ${error.message}`
+      );
+      if (attempt < retryCount) {
+        console.log(`⏳ Retrying in ${retryDelay / 1000}s...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      } else {
+        console.error(
+          "❌ Could not connect to PostgreSQL database after multiple attempts."
+        );
+        const targetDisplay = rawDatabaseUrl
+          ? rawDatabaseUrl.replace(/:([^:@]+)@/, ":****@")
+          : `postgres://${dbUser}:****@${dbHost}:${dbPort}/${dbName}`;
+        console.error(`   Target: ${targetDisplay}`);
+      }
+    }
+  }
+  return false;
+};
 ```
 
 ### 4.3 Product Model (`src/models/Product.ts`)
@@ -669,34 +759,35 @@ docker compose -f docker-compose.prod.yml up --build -d
 
 ## 6. How to Run & Verify the Projects
 
-### Running with Docker (Recommended)
+### Running Locally with Neon Serverless Cloud (Recommended)
 ```bash
-# 1. Start stack
+# 1. Configure .env with your Neon connection URL
+# In backend/.env:
+# DATABASE_URL=postgresql://<user>:<password>@<endpoint>-pooler.<region>.aws.neon.tech/<dbname>?sslmode=require
+
+# 2. Start Backend & Seed Data
+cd backend
+npm install
+npm run seed
+npm run dev
+
+# 3. Start Frontend (in a separate terminal)
+cd frontend
+pnpm install
+pnpm dev
+```
+
+### Running with Docker & Local PostgreSQL
+```bash
+# 1. Start full container stack
 docker compose up -d
 
 # 2. Seed catalog with demo data
 docker compose exec backend npm run seed
 ```
 
-### Running Locally on Host
-```bash
-# 1. Start PostgreSQL container
-docker compose up product-db -d
-
-# 2. Start Backend
-cd backend
-npm install
-npm run dev
-npm run seed
-
-# 3. Start Frontend (separate terminal)
-cd frontend
-pnpm install
-pnpm dev
-```
-
 ### Verification Endpoints
 - **Frontend Dashboard**: [http://localhost:3000](http://localhost:3000)
 - **Backend Health Check**: [http://localhost:5001/api/health](http://localhost:5001/api/health)
 - **Product Catalog API**: [http://localhost:5001/api/products](http://localhost:5001/api/products)
-- **Inventory Summary API**: [http://localhost:5001/api/products/stats/summary](http://localhost:5001/api/products/stats/summary)
+- **Inventory Summary API**: [http://localhost:5001/api/products/stats](http://localhost:5001/api/products/stats)

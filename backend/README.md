@@ -1,17 +1,18 @@
 # Product App - Backend API
 
-A RESTful backend service built with **Express 5**, **TypeScript**, **Sequelize ORM**, and **PostgreSQL**.
+A RESTful backend service built with **Express 5**, **TypeScript**, **Sequelize ORM**, and **PostgreSQL** (supporting both **Neon Serverless PostgreSQL** and local Docker/host PostgreSQL).
 
 ---
 
 ## 🛠️ Tech Stack
 
 - **Runtime**: Node.js (v20+)
-- **Framework**: Express.js
+- **Framework**: Express.js (v5)
 - **Language**: TypeScript
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (Neon Cloud or Local PostgreSQL 15)
+- **Database Driver**: `@neondatabase/serverless` + `ws` (WebSockets over port 443 for Neon) / `pg` (standard TCP)
 - **ORM**: Sequelize v6
-- **Development Tooling**: `tsx` (TypeScript Execute & Watch)
+- **Development Tooling**: `nodemon`, `ts-node`, `tsx`
 - **Containerization**: Docker & Docker Compose
 
 ---
@@ -22,20 +23,43 @@ A RESTful backend service built with **Express 5**, **TypeScript**, **Sequelize 
 
 Create a `.env` file in the `backend/` directory (or use `.env.example`):
 
+#### Option A: Neon Serverless PostgreSQL (Recommended for Cloud)
 ```env
-PORT=5000
+PORT=5001
+NODE_ENV=development
+CORS_ORIGIN=*
+
+# Neon Connection URL (pooled or unpooled)
+DATABASE_URL=postgresql://neondb_owner:<password>@ep-round-recipe-b7c43q0a-pooler.c-13.us-east-1.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://neondb_owner:<password>@ep-round-recipe-b7c43q0a.c-13.us-east-1.aws.neon.tech/neondb?sslmode=require
+
+# Direct Neon Parameters (Alternative)
+PGHOST=ep-round-recipe-b7c43q0a-pooler.c-13.us-east-1.aws.neon.tech
+PGUSER=neondb_owner
+PGDATABASE=neondb
+PGPASSWORD=<password>
+
+DB_LOGGING=false
+```
+
+> 💡 **Why `@neondatabase/serverless`?**
+> Neon connections automatically route through `@neondatabase/serverless` using WebSockets over HTTPS port **443**. This guarantees connectivity even in environments or ISPs where outbound connections to standard database port **5432** are blocked by firewalls.
+
+#### Option B: Local PostgreSQL (Docker or Host)
+```env
+PORT=5001
 NODE_ENV=development
 CORS_ORIGIN=*
 
 POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+POSTGRES_PORT=5433
 POSTGRES_DB=product_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 DB_LOGGING=false
 ```
 
-### 2. Running with Docker Compose (Recommended)
+### 2. Running with Docker Compose
 
 From the project root:
 
@@ -43,11 +67,11 @@ From the project root:
 docker compose up --build
 ```
 
-This will start both the PostgreSQL database (`product-db`) and the backend API container (`product-backend`).
+This starts both the PostgreSQL database (`product-db`) and the backend API container (`product-backend`).
 
 ### 3. Running Locally (without Docker)
 
-Ensure a PostgreSQL instance is running with the credentials in your `.env`, then run:
+Ensure your database is configured in `.env`, then run:
 
 ```bash
 cd backend
@@ -64,14 +88,14 @@ To populate the database with realistic demo products:
 npm run seed
 
 # Or via API request:
-curl -X POST http://localhost:5000/api/products/seed
+curl -X POST http://localhost:5001/api/products/seed
 ```
 
 ---
 
 ## 📚 API Reference
 
-Base URL: `http://localhost:5000/api`
+Base URL: `http://localhost:5001/api`
 
 ### Health Check
 
@@ -111,7 +135,7 @@ Checks server uptime and database connectivity status.
 
 **Example Request:**
 ```bash
-curl "http://localhost:5000/api/products?search=wireless&category=Electronics&sortBy=price&order=ASC&page=1&limit=10"
+curl "http://localhost:5001/api/products?search=wireless&category=Electronics&sortBy=price&order=ASC&page=1&limit=10"
 ```
 
 **Response (200 OK):**
